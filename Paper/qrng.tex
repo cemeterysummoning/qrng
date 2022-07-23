@@ -1,0 +1,103 @@
+\documentclass[12pt]{article}
+
+\usepackage{amsmath}
+
+\usepackage{graphicx}
+
+\usepackage{amsfonts}
+
+\usepackage{tikz}
+
+\usepackage{pgfplots}
+
+\usetikzlibrary{quantikz}
+
+\usepackage{hyperref}
+
+\usepackage[utf8]{inputenc}
+
+\title{Quantum Random Number Generator}
+
+\begin{document}
+
+\maketitle
+
+\section{Background}
+Qubits have a potential to be very effective at generating random numbers. By leveraging the probabilistic nature of qubits, we could develop a kind of efficient and reliable random number generator without having to depend on the deterministic nature of pseudo-random number generating algorithms that use predictable seeds. 
+
+There are multiple approaches that we can take to implement such a program. They would need to follow the criteria:
+\begin{enumerate}
+    \item Registers should be in an equal superposition of $n$ desired states
+    \item The outputs of measurements should be easily convertible to numbers between $1 - n$
+\end{enumerate}
+
+\section{Approach: Generalized W-State}
+The $W$ state is expressed as the following 3-qubit system:
+
+$$\frac{1}{\sqrt{3}}(\ket{001} + \ket{010} + \ket{100})$$
+
+To construct such a state, we can make use of an arbitrary rotation gate: perhaps the $R_y$ gate, since it doesn't have any complex phase components. For the $W_3$ state, we would need an equal superposition of 3 states, and hence, 
+the normalization factor must be $\frac{1}{\sqrt{3}}$. 
+
+We would then want to construct a matrix that would get our state (partially) to where we want it to be; something along the lines of a $\frac{1}{3}:\frac{2}{3}$ probability between two states. From there, we can split our $\frac{2}{3}$ probability state into two others, perhaps by using a similar, generalized unit matrix that we used to split our state into $\frac{1}{3}$ and $\frac{2}{3}$ probability.
+
+What would such a matrix look like? We can bear the structure of the $R_y$ gate in mind (because we will most likely use it for our implementation of the generalization). Recall that 
+$$R_y = \begin{bmatrix}
+\cos \frac{\theta}{2} & -\sin \frac{\theta}{2} \\ \sin \frac{\theta}{2} & \cos \frac{\theta}{2}
+\end{bmatrix}$$
+
+We want to transform one of our qubits in our register $\ket{\Psi} = \ket{000}$: $$\ket{\Psi_0} = \ket{0} \to \frac{1}{\sqrt{3}} (\ket{0} + \sqrt{2} \ket{1})$$
+Or, in matrix format:
+$$U\begin{bmatrix} 1 \\ 0 \end{bmatrix} = \frac{1}{\sqrt{3}}\begin{bmatrix} 1 \\ \sqrt{2} \end{bmatrix}$$
+where $U$ denotes some unitary gate. 
+Luckily, the gate that would perform this operation looks something like, as derived from some basic linear equations: 
+$$U = \frac{1}{\sqrt{3}}\begin{bmatrix} 1 & -\sqrt{2} \\ \sqrt{2} & 1 \end{bmatrix}$$
+There are several reasons why we define our gate like this. One reason is that we want our end product to look something like the $R_y$ gate so that we can easily apply arbitrary rotations to reach our desired state. In another vein, we can reason that, since we want $$\begin{bmatrix} 1 \\ 0 \end{bmatrix} \to \frac{\sqrt{1}}{\sqrt{3}} \begin{bmatrix} 1 \\ \sqrt{2} \end{bmatrix}$$ we would want $$\begin{bmatrix} 0 \\ 1 \end{bmatrix} \to \frac{\sqrt{1}}{\sqrt{3}} \begin{bmatrix} -\sqrt{2} \\ 1 \end{bmatrix}$$ as well, to preserve the relative phase action of a gate on the $\ket{1}$ state. Combining these transformations on the two basis vectors generates the aforementioned linear map. Another reason why the matrix must be in the specified state is the property that all quantum gates must be unitary; a gate multiplied with its conjugate transpose must equal the identity matrix.
+
+We can quickly verify that this is true.
+
+$$\frac{1}{\sqrt{3}}\begin{bmatrix} 1 & -\sqrt{2} \\ \sqrt{2} & 1\end{bmatrix} \cdot \frac{1}{\sqrt{3}} \begin{bmatrix} 1 & \sqrt{2} \\ -\sqrt{2} & 1 \end{bmatrix} = \frac{1}{3} \begin{bmatrix} 3 & 0 \\ 0 & 3 \end{bmatrix} = I$$
+After applying this gate, we have the state $\ket{\Psi} = \frac{1}{\sqrt{2}}(\ket{000} + \sqrt{2}\ket{100})$. What we now need to do is split $\sqrt{2}\ket{100}$ into its own separate states; mathematically, we need to manipulate the state in such a way that $\sqrt{2}\ket{100} \to \sqrt{2}\left(\frac{1}{\sqrt{2}} (\ket{110} + \ket{100})\right)$.
+We can do this with a controlled rotation gate on $\ket{\Psi_0}$, since the first qubit controls the further split within our manipulations. The gate we can use to do this is $$V = \frac{1}{\sqrt{2}}\begin{bmatrix} 1 & -1 \\ 1 & 1 \end{bmatrix}$$ 
+We end up with the state $\frac{1}{\sqrt{3}} (\ket{000} + \ket{100} + \ket{110})$. While this is not exactly what we want, it is close; we have achieved the uniform superposition across 3 qubits. We shift the qubits into a state we need with X and CNOT gates; our final circuit ends up looking something like:
+\begin{center}
+    \begin{quantikz}
+        \lstick{\ket{0}} & \gate{X} & \ctrl{1} & \targ{}   & \qw      & \qw       & \qw\\
+        \lstick{\ket{0}} & \qw      & \gate{U} & \ctrl{-1} & \ctrl{1} & \targ{}   & \qw\\
+        \lstick{\ket{0}} & \qw      & \qw      & \qw       & \gate{V} & \ctrl{-1} & \qw
+    \end{quantikz}
+\end{center}
+There seems to be some kind of pattern here. What if we generalized this to an $n$-qubit state?
+From our derivations, we already know that the normalizing coefficient should be something along the lines of $\frac{1}{\sqrt{n}}$. We can also observe that the gate used to create these specified 
+superpositions have outputs with ratios \[1 : n-1\]
+So, we can generalize the gate that transforms each probability ratio as: \[U(n) = \frac{1}{\sqrt{n}}\begin{bmatrix}
+    1 & -\sqrt{n - 1} \\ \sqrt{n-1} & 1
+\end{bmatrix}\]
+We can go even further and express this in terms of the $R_y$ gate that we have been considering. 
+Since the cosine and sine terms match up, we would only need to find $\theta$ for one of the corresponding functions:
+\begin{align*}
+    \cos{\frac{\theta}{2}} &= \frac{1}{\sqrt{n}} \\
+    \frac{\theta}{2} &= \arccos \frac{1}{\sqrt{n}} \\
+    \theta &= 2 \arccos \frac{1}{\sqrt{n}}
+\end{align*}
+So, for every ``split'' we need to do in our superposition, we can use the $R_y$ gate with $\theta=2\arccos{\frac{1}{\sqrt{n}}}$. Furthermore, we can just apply cascading units for each 
+qubit in our system; the usage of the CNOT gates to manipulate the bits generalizes as well.
+For notation purposes, we can express our ``splitter'' gate with an input $n$ as $R_y^n$.
+
+For example, a $W_5$ state could look something like: 
+\begin{center}
+    \begin{quantikz}
+        \lstick{\ket{0}} & \gate{X} & \ctrl{1}     & \targ{}   & \qw          & \qw       & \qw          & \qw       & \qw & \qw & \qw \\
+        \lstick{\ket{0}} & \qw      & \gate{R_y^5} & \ctrl{-1} & \ctrl{1}     & \targ{}   & \qw          & \qw       & \qw & \qw & \qw \\
+        \lstick{\ket{0}} & \qw      & \qw          & \qw       & \gate{R_y^4} & \ctrl{-1} & \ctrl{1}     & \targ{}   & \qw & \qw & \qw \\
+        \lstick{\ket{0}} & \qw      & \qw          & \qw       & \qw          & \qw       & \gate{R_y^3} & \ctrl{-1} & \ctrl{1} & \targ{} & \qw \\
+        \lstick{\ket{0}} & \qw      & \qw          & \qw       & \qw          & \qw       & \qw          & \qw       & \gate{R_y^2} & \ctrl{-1} & \qw 
+    \end{quantikz}
+\end{center}
+As you can see, we just keep iterating downards from $R_y^n$ until we reach an $R_y^2$ gate. After we measure the register, the position of the $|1\rangle$ in the state would thus be convertible to a useful random number.
+For example, $\ket{001}$ can denote 1, $\ket{010}$ can denote 2, and so on and so forth. \\
+\section{Discussion}
+However, the W-state approach is wasteful in using qubits; using one qubit to represent one number increases in size extremely fast and leaves many potential states unused. A better solution would be to prepare an equal superposition where only $\lceil \log_2(n) \rceil$ qubits are needed; however, 
+I have not found a \emph{general} circuit that completes this task.
+
+\end{document}

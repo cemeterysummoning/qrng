@@ -1,0 +1,3 @@
+\contentsline {section}{\numberline {1}Background}{1}{section.1}%
+\contentsline {section}{\numberline {2}Approach 1: Generalized W-State}{1}{section.2}%
+\contentsline {section}{\numberline {3}Equal Superposition of $n$ numbers represented in binary}{3}{section.3}%
